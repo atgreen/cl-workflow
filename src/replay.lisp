@@ -4,7 +4,7 @@
 ;;;
 ;;; Copyright (C) 2026 Anthony Green
 
-(in-package #:cl-workflow)
+(in-package #:cl-flow)
 
 ;;; ─── Workflow Context ──────────────────────────────────────────────────────
 ;;;
@@ -160,37 +160,37 @@
          (tq (or task-queue (workflow-context-task-queue ctx)))
          (activity-name-str (symbol-name name)))
 
-    ;; Check replay: look for ACTIVITY_SCHEDULED at this position
-    (let ((scheduled-event (check-replay-match ctx event-id "ACTIVITY_SCHEDULED" activity-name-str)))
-      (when scheduled-event
-        ;; We're replaying. The next event should be ACTIVITY_COMPLETED or ACTIVITY_FAILED.
-        (let* ((result-event-id (next-event-id ctx))
-               (result-event (replay-event ctx result-event-id)))
-          (unless result-event
-            ;; History ends here -- we need to actually run the activity from this point
-            ;; Decrement counter since we'll re-issue this event
-            (decf (workflow-context-event-counter ctx))
-            (go-to-live-execution))
-          (let ((result-type (getf result-event :event-type)))
-            (cond
-              ((string= result-type "ACTIVITY_COMPLETED")
-               (process-pending-queries ctx)
-               (return-from execute-activity
-                 (getf (getf result-event :attributes) :result)))
-              ((string= result-type "ACTIVITY_FAILED")
-               (let ((attrs (getf result-event :attributes)))
-                 (error 'activity-failure
-                        :activity-name name
-                        :attempts (getf attrs :attempts)
-                        :last-error (getf attrs :error-message))))
-              (t
-               (error 'non-determinism-error
-                      :run-id (workflow-context-run-id ctx)
-                      :event-id result-event-id
-                      :expected "ACTIVITY_COMPLETED or ACTIVITY_FAILED"
-                      :actual result-type)))))))
-
     (tagbody
+       ;; Check replay: look for ACTIVITY_SCHEDULED at this position
+       (let ((scheduled-event (check-replay-match ctx event-id "ACTIVITY_SCHEDULED" activity-name-str)))
+         (when scheduled-event
+           ;; We're replaying. The next event should be ACTIVITY_COMPLETED or ACTIVITY_FAILED.
+           (let* ((result-event-id (next-event-id ctx))
+                  (result-event (replay-event ctx result-event-id)))
+             (unless result-event
+               ;; History ends here -- we need to actually run the activity from this point
+               ;; Decrement counter since we'll re-issue this event
+               (decf (workflow-context-event-counter ctx))
+               (go go-to-live-execution))
+             (let ((result-type (getf result-event :event-type)))
+               (cond
+                 ((string= result-type "ACTIVITY_COMPLETED")
+                  (process-pending-queries ctx)
+                  (return-from execute-activity
+                    (getf (getf result-event :attributes) :result)))
+                 ((string= result-type "ACTIVITY_FAILED")
+                  (let ((attrs (getf result-event :attributes)))
+                    (error 'activity-failure
+                           :activity-name name
+                           :attempts (getf attrs :attempts)
+                           :last-error (getf attrs :error-message))))
+                 (t
+                  (error 'non-determinism-error
+                         :run-id (workflow-context-run-id ctx)
+                         :event-id result-event-id
+                         :expected "ACTIVITY_COMPLETED or ACTIVITY_FAILED"
+                         :actual result-type)))))))
+
      go-to-live-execution
        ;; Live execution: schedule the activity
        (engine-schedule-activity engine ctx event-id name activity-name-str tq input activity-def)

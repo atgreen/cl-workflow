@@ -1,0 +1,11 @@
+*~
+.#*
+ocicl/
+cl-workflow
+*.db
+*.db-wal
+*.db-shm
+*.fasl
+.codex
+.gail-labels
+PRD.md
